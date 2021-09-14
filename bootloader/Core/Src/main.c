@@ -64,6 +64,8 @@ static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 static void printmsg(char *format,...);
+void bootloader_uart_read_data(void);
+void bootloader_jump_to_user_app(void);
 
 /* USER CODE END PFP */
 
@@ -108,22 +110,31 @@ int main(void)
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  /* Lets check whether button is pressed or not, if not pressed jump to user application */
+  if ( HAL_GPIO_ReadPin(B1_GPIO_Port,B1_Pin) == GPIO_PIN_RESET )
+  {
+	  printmsg("BL_DEBUG_MSG:Button is pressed .. going to BL mode\n\r");
+
+	  //we should continue in bootloader mode
+	  bootloader_uart_read_data();
+
+  }
+  else
+  {
+	  printmsg("BL_DEBUG_MSG:Button is not pressed .. executing user app\n");
+
+	  //jump to user application
+	  bootloader_jump_to_user_app();
+
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//	  HAL_UART_Transmit(&huart2, (uint8_t*) somedata, sizeof(somedata), HAL_MAX_DELAY);
-//	  HAL_UART_Transmit(&huart3, (uint8_t*) somedata, sizeof(somedata), HAL_MAX_DELAY);
-
-	  uint32_t current_tick = HAL_GetTick();
-	  printmsg("current_tick = %d\r\n", current_tick);
-	  while( HAL_GetTick() <= (current_tick + 500) );
-  }
   /* USER CODE END 3 */
 }
 
@@ -312,6 +323,18 @@ static void printmsg(char *format,...)
 	HAL_UART_Transmit(D_UART, (uint8_t *)str, strlen(str), HAL_MAX_DELAY);
 	va_end(args);
 #endif
+
+}
+
+
+void bootloader_uart_read_data(void)
+{
+
+}
+
+
+void bootloader_jump_to_user_app(void)
+{
 
 }
 
