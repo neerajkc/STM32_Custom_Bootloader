@@ -76,6 +76,7 @@ uint8_t get_bootloader_version(void);
 void bootloader_uart_write_data(uint8_t *pBuffer,uint32_t len);
 uint16_t get_mcu_chip_id(void);
 uint8_t get_flash_rdp_level(void);
+uint8_t verify_address(uint32_t go_address);
 
 /* USER CODE END EFP */
 
@@ -148,8 +149,20 @@ uint8_t get_flash_rdp_level(void);
 #define BL_NACK  0X7F
 
 /*CRC*/
-#define VERIFY_CRC_FAIL    1
-#define VERIFY_CRC_SUCCESS 0
+#define VERIFY_CRC_FAIL    	1
+#define VERIFY_CRC_SUCCESS 	0
+
+#define ADDR_VALID 			0x00
+#define ADDR_INVALID 		0x01
+
+/*Some Start and End addresses of different memories of STM32F446xx MCU */
+#define SRAM1_SIZE          112*1024     // STM32F446RE has 112KB of SRAM1
+#define SRAM1_END           (SRAM1_BASE + SRAM1_SIZE)
+#define SRAM2_SIZE          16*1024     // STM32F446RE has 16KB of SRAM2
+#define SRAM2_END           (SRAM2_BASE + SRAM2_SIZE)
+#define FLASH_SIZE          512*1024     // STM32F446RE has 512KB of SRAM2
+#define BKPSRAM_SIZE        4*1024     // STM32F446RE has 4KB of SRAM2
+#define BKPSRAM_END         (BKPSRAM_BASE + BKPSRAM_SIZE)
 
 
 /* USER CODE END Private defines */

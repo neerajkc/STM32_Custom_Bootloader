@@ -529,7 +529,6 @@ void bootloader_handle_getcid_cmd(uint8_t *bl_rx_buffer)
         bootloader_send_nack();
 	}
 
-
 }
 
 
@@ -559,12 +558,71 @@ void bootloader_handle_getrdp_cmd(uint8_t *bl_rx_buffer)
         bootloader_send_nack();
 	}
 
-
 }
 
 
-void bootloader_handle_go_cmd(uint8_t *pBuffer)
+/* Helper function to handle BL_GO_TO_ADDR command
+ * To test the user app, give the address of the reset handler.
+ * Make sure the address you give is without the T-bit added.
+ * This function takes care of that addition.
+ * */
+
+void bootloader_handle_go_cmd(uint8_t *bl_rx_buffer)
 {
+    uint32_t go_address=0;
+    uint8_t addr_valid = ADDR_VALID;
+    uint8_t addr_invalid = ADDR_INVALID;
+
+    printmsg("BL_DEBUG_MSG:bootloader_handle_go_cmd\n");
+
+    //Total length of the command packet
+	uint32_t command_packet_len = bl_rx_buffer[0]+1 ;
+
+	//extract the CRC32 sent by the Host
+	uint32_t host_crc = *((uint32_t * ) (bl_rx_buffer+command_packet_len - 4) ) ;
+
+	if (! bootloader_verify_crc(&bl_rx_buffer[0],command_packet_len-4,host_crc))
+	{
+        printmsg("BL_DEBUG_MSG:checksum success !!\n");
+
+        bootloader_send_ack(bl_rx_buffer[0],1);
+
+        //extract the go address
+        go_address = *((uint32_t *)&bl_rx_buffer[2] );
+        printmsg("BL_DEBUG_MSG:GO addr: %#x\n",go_address);
+
+        if( verify_address(go_address) == ADDR_VALID )
+        {
+            //tell host that address is fine
+            bootloader_uart_write_data(&addr_valid,1);
+
+            /*jump to "go" address.
+            we don't care what is being done there.
+            host must ensure that valid code is present over there
+            Its not the duty of bootloader. so just trust and jump */
+
+            /* Not doing the below line will result in hardfault exception for ARM cortex M */
+
+            go_address+=1; //make T bit =1
+
+            void (*lets_jump)(void) = (void *)go_address;
+
+            printmsg("BL_DEBUG_MSG: jumping to go address! \n");
+
+            lets_jump();
+
+		}else
+		{
+            printmsg("BL_DEBUG_MSG:GO addr invalid ! \n");
+            //tell host that address is invalid
+            bootloader_uart_write_data(&addr_invalid,1);
+		}
+
+	}else
+	{
+        printmsg("BL_DEBUG_MSG:checksum fail !!\n");
+        bootloader_send_nack();
+	}
 
 }
 
@@ -716,6 +774,39 @@ uint8_t get_flash_rdp_level(void)
 
 }
 
+
+
+//verify the address sent by the host .
+uint8_t verify_address(uint32_t go_address)
+{
+	//so, what are the valid addresses to which we can jump ?
+	//can we jump to system memory ? yes
+	//can we jump to sram1 memory ?  yes
+	//can we jump to sram2 memory ? yes
+	//can we jump to backup sram memory ? yes
+	//can we jump to peripheral memory ? its possible , but dont allow. so no
+	//can we jump to external memory ? yes.
+
+//incomplete -poorly written .. optimize it
+	if ( go_address >= SRAM1_BASE && go_address <= SRAM1_END)
+	{
+		return ADDR_VALID;
+	}
+	else if ( go_address >= SRAM2_BASE && go_address <= SRAM2_END)
+	{
+		return ADDR_VALID;
+	}
+	else if ( go_address >= FLASH_BASE && go_address <= FLASH_END)
+	{
+		return ADDR_VALID;
+	}
+	else if ( go_address >= BKPSRAM_BASE && go_address <= BKPSRAM_END)
+	{
+		return ADDR_VALID;
+	}
+	else
+		return ADDR_INVALID;
+}
 
 
 /* USER CODE END 4 */
