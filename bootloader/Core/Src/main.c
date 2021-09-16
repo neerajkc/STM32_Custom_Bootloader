@@ -628,7 +628,7 @@ void bootloader_handle_go_cmd(uint8_t *bl_rx_buffer)
 
 
 /* Helper function to handle BL_FLASH_ERASE command */
-void bootloader_handle_flash_erase_cmd(uint8_t *pBuffer)
+void bootloader_handle_flash_erase_cmd(uint8_t *bl_rx_buffer)
 {
     uint8_t erase_status = 0x00;
     printmsg("BL_DEBUG_MSG:bootloader_handle_flash_erase_cmd\n");
@@ -642,11 +642,11 @@ void bootloader_handle_flash_erase_cmd(uint8_t *pBuffer)
 	if (! bootloader_verify_crc(&bl_rx_buffer[0],command_packet_len-4,host_crc))
 	{
         printmsg("BL_DEBUG_MSG:checksum success !!\n");
-        bootloader_send_ack(pBuffer[0],1);
-        printmsg("BL_DEBUG_MSG:initial_sector : %d  no_ofsectors: %d\n",pBuffer[2],pBuffer[3]);
+        bootloader_send_ack(bl_rx_buffer[0],1);
+        printmsg("BL_DEBUG_MSG:initial_sector : %d  no_ofsectors: %d\n",bl_rx_buffer[2],bl_rx_buffer[3]);
 
         HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin,1);
-        erase_status = execute_flash_erase(pBuffer[2] , pBuffer[3]);
+        erase_status = execute_flash_erase(bl_rx_buffer[2] , bl_rx_buffer[3]);
         HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin,0);
 
         printmsg("BL_DEBUG_MSG: flash erase status: %#x\n",erase_status);
@@ -661,8 +661,63 @@ void bootloader_handle_flash_erase_cmd(uint8_t *pBuffer)
 }
 
 
-void bootloader_handle_mem_write_cmd(uint8_t *pBuffer)
+/*Helper function to handle BL_MEM_WRITE command */
+void bootloader_handle_mem_write_cmd(uint8_t *bl_rx_buffer)
 {
+
+	uint8_t write_status = 0x00;
+	uint8_t payload_len = bl_rx_buffer[6];
+
+	uint32_t mem_address = *((uint32_t *) ( &bl_rx_buffer[2]) );
+
+    printmsg("BL_DEBUG_MSG:bootloader_handle_mem_write_cmd\n");
+
+    //Total length of the command packet
+	uint32_t command_packet_len = bl_rx_buffer[0]+1 ;
+
+	//extract the CRC32 sent by the Host
+	uint32_t host_crc = *((uint32_t * ) (bl_rx_buffer+command_packet_len - 4) ) ;
+
+
+	if (! bootloader_verify_crc(&bl_rx_buffer[0],command_packet_len-4,host_crc))
+	{
+        printmsg("BL_DEBUG_MSG:checksum success !!\n");
+
+        bootloader_send_ack(bl_rx_buffer[0],1);
+
+        printmsg("BL_DEBUG_MSG: mem write address : %#x\n",mem_address);
+
+		if( verify_address(mem_address) == ADDR_VALID )
+		{
+
+            printmsg("BL_DEBUG_MSG: valid mem write address\n");
+
+            //glow the led to indicate bootloader is currently writing to memory
+            HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+
+            //execute mem write
+            write_status = execute_mem_write(&bl_rx_buffer[7],mem_address, payload_len);
+
+            //turn off the led to indicate memory write is over
+            HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+
+            //inform host about the status
+            bootloader_uart_write_data(&write_status,1);
+
+		}else
+		{
+            printmsg("BL_DEBUG_MSG: invalid mem write address\n");
+            write_status = ADDR_INVALID;
+            //inform host that address is invalid
+            bootloader_uart_write_data(&write_status,1);
+		}
+
+
+	}else
+	{
+        printmsg("BL_DEBUG_MSG:checksum fail !!\n");
+        bootloader_send_nack();
+	}
 
 }
 
@@ -882,6 +937,28 @@ uint8_t execute_flash_erase(uint8_t sector_number , uint8_t number_of_sector)
 
 
 	return INVALID_SECTOR;
+}
+
+
+/* This function writes the contents of pBuffer to  "mem_address" byte by byte */
+//Note1 : Currently this function supports writing to Flash only .
+//Note2 : This functions does not check whether "mem_address" is a valid address of the flash range.
+uint8_t execute_mem_write(uint8_t *pBuffer, uint32_t mem_address, uint32_t len)
+{
+    uint8_t status=HAL_OK;
+
+    //We have to unlock flash module to get control of registers
+    HAL_FLASH_Unlock();
+
+    for(uint32_t i = 0 ; i <len ; i++)
+    {
+        //Here we program the flash byte by byte
+        status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE,mem_address+i,pBuffer[i] );
+    }
+
+    HAL_FLASH_Lock();
+
+    return status;
 }
 
 
