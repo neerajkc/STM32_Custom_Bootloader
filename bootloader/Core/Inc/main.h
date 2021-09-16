@@ -77,6 +77,7 @@ void bootloader_uart_write_data(uint8_t *pBuffer,uint32_t len);
 uint16_t get_mcu_chip_id(void);
 uint8_t get_flash_rdp_level(void);
 uint8_t verify_address(uint32_t go_address);
+uint8_t execute_flash_erase(uint8_t sector_number , uint8_t number_of_sector);
 
 /* USER CODE END EFP */
 
@@ -154,6 +155,8 @@ uint8_t verify_address(uint32_t go_address);
 
 #define ADDR_VALID 			0x00
 #define ADDR_INVALID 		0x01
+
+#define INVALID_SECTOR 		0x04
 
 /*Some Start and End addresses of different memories of STM32F446xx MCU */
 #define SRAM1_SIZE          112*1024     // STM32F446RE has 112KB of SRAM1
